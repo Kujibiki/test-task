@@ -17,26 +17,24 @@ defmodule MyappWeb.OrderController do
 
 
   def create(conn, %{"order" => order_params, "customer" => customer_params}) do
-      customer = Customers.get_customer_by_email_or_phone(customer_params)
-
-      if(customer == nil) do
+    case Customers.get_customer_by_email_or_phone(customer_params) do
+      nil ->
         conn
         |> put_status(:not_found)
         |> json( %{error: "Customer not found"})
-      end
-
-      order_params = put_in(order_params["external_id"], order_params["id"])
-
-      case Myapp.OrderProcessor.award_points(customer,order_params) do
-        {:ok, results} ->
-          conn
-          |> put_status(:created)
-          |> json(results)
-        _ ->
-          conn
-          |> put_status(:service_unavailable)
-          |> json(%{error: "Something went wrong while calculating points"})
-      end
+      %Customer{} = customer ->
+        order_params = put_in(order_params["external_id"], order_params["id"])
+        case Myapp.OrderProcessor.award_points(customer,order_params) do
+          {:ok, results} ->
+            conn
+            |> put_status(:created)
+            |> json(results)
+          _ ->
+            conn
+            |> put_status(:service_unavailable)
+            |> json(%{error: "Something went wrong while calculating points"})
+        end
+    end
    end
 
   def create(conn, _) do

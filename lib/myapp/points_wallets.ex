@@ -67,10 +67,10 @@ defmodule Myapp.PointsWallets do
       {:error, %Ecto.Changeset{}}
 
   """
-  def update_points_wallet!(%PointsWallet{} = points_wallet, attrs) do
+  def update_points_wallet(%PointsWallet{} = points_wallet, attrs) do
     points_wallet
     |> PointsWallet.changeset(attrs)
-    |> Repo.update!()
+    |> Repo.update()
   end
 
   @doc """

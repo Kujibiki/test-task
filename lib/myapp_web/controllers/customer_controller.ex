@@ -12,30 +12,30 @@ defmodule MyappWeb.CustomerController do
   end
 
   def get_points(conn, params) do
-    customer = Customers.get_customer_by_email_or_phone(params)
-    if(customer == nil) do
-      conn
-      |> put_status(:not_found)
-      |> json( %{error: "Customer not found"})
+    case Customers.get_customer_by_email_or_phone(params) do
+      nil ->
+        conn
+        |> put_status(:not_found)
+        |> json( %{error: "Customer not found"})
+      %Customer{} = customer ->
+        total_points = customer.points_wallet.value
+        json(conn,%{total_points: total_points})
     end
-    total_points = customer.points_wallet.value
-    json(conn,%{total_points: total_points})
   end
 
   def change_grade(conn, %{"grade" => grade_params, "customer" => customer_params}) do
-    customer = Customers.get_customer_by_email_or_phone(customer_params)
-    if(customer == nil) do
-      conn
-      |> put_status(:not_found)
-      |> json( %{error: "Customer not found"})
-    end
-
-    params = %{grade_id: grade_params["id"]}
-
-    with {:ok, %Customer{} = customer} <-Customers.update_customer(customer, params) do
-      conn
-        |> put_status(:ok)
-        |> render(:show, customer: customer)
+    case Customers.get_customer_by_email_or_phone(customer_params) do
+      nil ->
+        conn
+        |> put_status(:not_found)
+        |> json( %{error: "Customer not found"})
+      %Customer{} = customer ->
+        params = %{grade_id: grade_params["id"]}
+        with {:ok, %Customer{} = customer} <-Customers.update_customer(customer, params) do
+          conn
+            |> put_status(:ok)
+            |> render(:show, customer: customer)
+        end
     end
   end
 

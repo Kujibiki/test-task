@@ -18,41 +18,49 @@ defmodule MyappWeb.TransactionController do
   end
 
   def create(conn, %{"transaction" => transaction_params, "customer" => customer_params}) do
-    customer = Customers.get_customer_by_email_or_phone(customer_params)
+    case Customers.get_customer_by_email_or_phone(customer_params) do
+      nil ->
+        conn
+        |> put_status(:not_found)
+        |> json( %{error: "Customer not found"})
+      %Customer{} = customer ->
+        changeset = Transaction.changeset(%Transaction{}, transaction_params)
+        if(not changeset.valid?) do
+          conn
+          |> put_status(:bad_request)
+          |> json( %{error: "Transaction data is invalid"})
+        else
+          current_points_balance = customer.points_wallet.value
+          transaction_value = transaction_params["value"]
 
-    if(customer == nil) do
-      conn
-      |> put_status(:not_found)
-      |> json( %{error: "Customer not found"})
-    end
+          transaction_value = case is_binary(transaction_value) do
+            true -> String.to_integer(transaction_value)
+            _ -> transaction_value
+          end
 
-    changeset = Transaction.changeset(%Transaction{}, transaction_params)
-    if(not changeset.valid?) do
-      conn
-      |> put_status(:bad_request)
-      |> json( %{error: "Transaction data is invalid"})
-    end
-
-    current_points_balance = customer.points_wallet.value
-
-    if(transaction_params["sign"] && current_points_balance < transaction_params["value"]) do
-      conn
-      |> put_status(:not_acceptable)
-      |> json( %{error: "insufficient points balance"})
-    end
-
-    Myapp.Repo.transaction fn ->
-      with {:ok, %Transaction{} = transaction} <- Transactions.create_transaction!(customer,transaction_params) do
-
-          total_points = PointsProcessor.calculate_points_balance(customer)
-          PointsWallets.update_points_wallet!(customer.points_wallet,%{value: total_points})
-
+          if(!transaction_params["sign"] && (current_points_balance < transaction_value)) do
+            conn
+            |> put_status(:not_acceptable)
+            |> json( %{error: "insufficient points balance"})
+          else
+            Myapp.Repo.transaction fn ->
+              with {:ok, %Transaction{} = _transaction} <- Transactions.create_transaction!(customer,transaction_params) do
+                PointsProcessor.calc_and_update_points_wallet(customer)
+                conn
+                |> put_status(:created)
+                |> json( %{message: "Transaction created"})
+              end
+            end
+          end
+        end
       end
-    end
+  end
 
+
+  def create(conn, _) do
     conn
-    |> put_status(:created)
-    |> json( %{message: "Transaction created"})
+    |> put_status(:bad_request)
+    |> json( %{error: "Not enough data in request"})
   end
 
   def show(conn, %{"id" => id}) do
